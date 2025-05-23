@@ -1,0 +1,49 @@
+# Node modules (frontend & backend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Build output
+.next/
+out/
+dist/
+build/
+
+# Truffle artifacts & cache
+artifacts/
+cache/
+*.log
+
+# Solidity coverage
+coverage/
+coverage.json
+
+# Hardhat (if you ever switch or use both)
+typechain/
+typechain-types/
+
+# Env variables
+.env
+.env.local
+.env.*.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Misc
+*.pid
+*.seed
+*.tgz
+
+# Optional: lockfiles (depends on your setup)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
