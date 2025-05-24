@@ -86,3 +86,38 @@ NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=
     truffle migrate --network sepolia
 
 
+🔄 NFT Flow
+🖼️ Mint NFT → Metadata sent to IPFS via Pinata
+
+📝 List the NFT for sale → Stored in MongoDB
+
+💰 Buy NFT → NFT ownership transferred via contract
+
+🔄 Resell or ❌ Cancel listings
+
+🛡️ Security Notes
+Smart contracts enforce ownership + approval.
+
+MetaMask handles all wallet interactions.
+
+Server-side listing logic validates all requests against blockchain state.
+
+📤 Deployment (Vercel + MongoDB Atlas)
+This project is deployable to Vercel:
+
+Push to GitHub
+
+Connect repo on vercel.com
+
+Set environment variables under project settings
+
+Deploy!
+
+📜 License
+MIT License
+
+👋 Author
+## 👋 Author
+
+- GitHub: [@dannymmcall](https://github.com/dannymccall)
+- Twitter: [@_nana_bekoe_](https://twitter.com/_nana_bekoe)
