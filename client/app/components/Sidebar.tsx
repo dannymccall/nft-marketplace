@@ -85,20 +85,27 @@ const {handleLogout} = useLogout()
         </div>
         <div className="w-full flex flex-col gap-5 px-5">
           <div className=" ">
-            {profilePicture ? (
+            {user ? (
               // <div className="">
               <div className="flex flex-col gap-3 ">
                 <div
                   className="flex gap-3 items-center cursor-pointer"
                   onClick={() => setIsProfileDropdownOpen((prev) => !prev)}
                 >
-                  <Image
-                    src={profilePicture}
-                    alt="Profile-picture"
-                    width={300}
-                    height={300}
-                    className="h-10 w-10 rounded-lg"
-                  />
+                  {
+                    profilePicture? (
+                      <Image
+                        src={profilePicture}
+                        alt="Profile-picture"
+                        width={300}
+                        height={300}
+                        className="h-10 w-10 rounded-lg"
+                      />
+
+                    ): (
+                      <FaRegUserCircle size={30} className="text-slate-50" />
+                    )
+                  }
                   <p className="flex items-center gap-3 text-white">
                     {`${user?.address.slice(0, 6)}...${user?.address.slice(
                       -4
