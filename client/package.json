@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
+    "@mongodb-js/saslprep": "^1.2.2",
     "@types/crypto-js": "^4.2.2",
     "@types/react-icons": "^2.2.7",
     "crypto-js": "^4.2.0",
