@@ -44,6 +44,5 @@ Thumbs.db
 *.tgz
 
 # Optional: lockfiles (depends on your setup)
-# package-lock.json
 # yarn.lock
 # pnpm-lock.yaml

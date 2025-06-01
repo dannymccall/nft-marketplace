@@ -7,20 +7,30 @@ import { useForm } from "react-hook-form";
 import { createNFTSchema } from "@/app/lib/definitions";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { mint, approve, listNFT } from "@/app/lib/helperFunctions";
+import { mint, listNFT } from "@/app/lib/helperFunctions";
 import { checkIfUserExists } from "@/app/lib/helperFunctions";
 import { useAuth } from "@/app/context/AuthContext";
 import { useWallet } from "@/app/context/WallatContext";
 import { makeRequest } from "@/app/lib/helperFunctions";
 import { stringifyBigInts } from "@/app/lib/helperFunctions";
 import { useNotification } from "@/app/context/NotificationContext";
+import ApproveNFT from "@/app/components/ApproveNFT";
+import ImageUpload from "@/app/components/ImageUploader";
+import NFTMintForm from "@/app/components/NFTMintForm";
+import ListNFTPriceModal from "@/app/components/ListNFTPriceModal";
+import { useHandleSendToBackend } from "@/app/hooks/useSendToBackend";
 export default function MintNFT() {
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string>("");
+  const [preview, setPreview] = useState<string | null>("");
   const [uploading, setUploading] = useState(false);
   const [minting, setMinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { showToast } = useNotification();
+  const [tokenId, setTokenId] = useState<number | null>(null);
+  const [shouldListAfterApproval, setShouldListAfterApproval] = useState(false);
+  const [modalOpen, setModalOpen] = useState<boolean>(false);
+  const [price, setPrice] = useState<number>(0);
+  const { sendListingToBackend } = useHandleSendToBackend();
   // type ExtendedFormFields = CreateNFTSchema & {
   //   sell?: boolean; // or any name and type you want
   // };
@@ -32,12 +42,12 @@ export default function MintNFT() {
     handleSubmit,
     formState: { errors },
     reset,
+    getValues,
   } = useForm<CreateNFTSchema>({
     resolver: zodResolver(createNFTSchema),
     defaultValues: {
       name: "",
       description: "",
-      price: 0,
       collection: "",
       sell: false,
     },
@@ -60,8 +70,9 @@ export default function MintNFT() {
 
   const handleMint = async (data: CreateNFTSchema) => {
     try {
+      console.log("Minting data:", data);
       setUploading(true);
-
+      showToast("Minting NFT...", "info");
       await connectWallet();
       if (!web3 || !account) throw new Error("Wallet not connected");
 
@@ -69,7 +80,10 @@ export default function MintNFT() {
       if (!userExists)
         throw new Error("Please connect your wallet to mint an NFT");
 
-      if (!file) throw new Error("Please upload a file");
+      if (!file) {
+        showToast("Please select a file!!!", "error");
+        return;
+      }
 
       const { metadataUri, metadataGatewayUrl } = await uploadToIPFS(data);
       const mintTx = await mint(metadataUri, account);
@@ -79,24 +93,30 @@ export default function MintNFT() {
       const tokenId = parseInt(
         mintTx.events?.Transfer.returnValues.tokenId!.toString()
       );
-
-      if (data.sell) {
-        await approve(tokenId);
-        const listReceipt = await listNFT(tokenId, data.price.toString());
-        listId = parseInt(
-          listReceipt.events?.NFTListed.returnValues.id!.toString()
-        );
-      }
-
+      setTokenId(tokenId);
+      console.log("Token ID:", tokenId);
       const safeTx = stringifyBigInts(mintTx);
 
       const response = await saveNFTToBackend({
         receipt: safeTx,
         data: { ...data, metadataUri, metadataGatewayUrl, listId },
       });
+
+      console.log(response);
+      if (data.sell) {
+        setShouldListAfterApproval(true); // Flag that we want to list after approval
+      } else {
+        reset();
+        setPreview(null);
+      }
       if (response.success) {
         showToast(response.message, "success");
+        setPreview(null);
+        return;
+      } else {
+        showToast(response.message, "error");
         reset();
+        return;
       }
     } catch (error: any) {
       console.error("Mint error:", error.message);
@@ -107,8 +127,41 @@ export default function MintNFT() {
     }
   };
 
+  const handleApprove = async (tokenId: number) => {
+    if (!tokenId || !shouldListAfterApproval) return;
+
+    console.log({ tokenId, price: price });
+    setShouldListAfterApproval(false);
+    const timeOut: NodeJS.Timeout = setTimeout(() => {
+      setModalOpen(true);
+    }, 2000);
+
+    return () => clearTimeout(timeOut);
+  };
+
+  const handleOnSet = async (tokenId: number) => {
+    try {
+      const listReceipt = await listNFT(tokenId, price.toString());
+      const listId = parseInt(
+        listReceipt.events?.NFTListed.returnValues.id!.toString()
+      );
+
+       await sendListingToBackend({
+        tokenId: tokenId,
+        service: "listNFT",
+        listId:listId,
+        price: price,
+      }, "/api/listing?service=listNFT");
+    } catch (err: any) {
+      console.error("List error:", err.message);
+      showToast(err.message, "error");
+    } finally {
+      setShouldListAfterApproval(false); // Clean up
+    }
+  };
   const uploadToIPFS = async (data: CreateNFTSchema) => {
     const formData = new FormData();
+    if (!user?.address) throw new Error("User address not available");
     formData.append("file", file as Blob);
     formData.append("metadata", JSON.stringify(data));
     formData.append("address", user?.address!);
@@ -138,8 +191,27 @@ export default function MintNFT() {
 
     return response;
   };
+
   return (
     <main className="w-full overflow-hidden">
+      <ApproveNFT
+        modalOpen={shouldListAfterApproval}
+        setModalOpen={(open) => {
+          if (!open) setTokenId(null);
+        }}
+        tokenId={tokenId!}
+        onClose={() => setTokenId(null)}
+        onApprove={handleApprove}
+      />
+      <ListNFTPriceModal
+        price={price}
+        setPrice={setPrice}
+        modalOpen={modalOpen}
+        setModalOpen={setModalOpen}
+        onClose={() => setPrice(0)}
+        tokenId={tokenId!}
+        onSet={() => handleOnSet(tokenId!)}
+      />
       <div className="flex w-full py-36 flex-col justify-center items-center h-full p-4">
         <p className="text-slate-50 mb-4 text-center text-lg lg:text-xl font-semibold">
           Upload your image and fill in the details to mint your NFT.
@@ -149,124 +221,20 @@ export default function MintNFT() {
             className="flex flex-col md:flex-row gap-1 max-w-5xl w-full  p-6 rounded-xl shadow-lg"
             onSubmit={handleSubmit(handleMint)}
           >
-            <div className="md:w-1/2 w-full mb-4">
-              {/* <label className="block  font-medium">Upload Image</label> */}
-              <div className="flex flex-col lg:items-center justify-center w-96 h-full border-gray-300 rounded-lg mb-4 ">
-                <label
-                  className="flex flex-col items-center justify-center w-64 lg:w-full h-96 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-[#302b63]"
-                  onClick={handleUploadClick}
-                >
-                  {file ? (
-                    <img
-                      src={preview}
-                      alt="preview"
-                      className="w-full h-96  rounded-lg"
-                    />
-                  ) : (
-                    <FaUpload className="text-gray-400 text-4xl" />
-                  )}
-                </label>
-                {error && <p className="text-red-500 text-sm">{error}</p>}
-                <p className="text-gray-500 text-sm mt-1">
-                  PNG, JPG, GIF up to 10MB
-                </p>
-              </div>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                className="file-input file-input-bordered w-full hidden"
-                ref={fileInputRef}
-              />
-            </div>
-            <div className="md:w-1/2 w-full flex flex-col gap-4">
-              <div>
-                <label className="block mb-1 text-slate-200 font-medium">
-                  Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="Enter name"
-                  className="input input-bordered w-full text-gray-800 font-semibold"
-                  {...register("name", { required: true })}
-                />
-                {errors.name && (
-                  <p className="text-red-500 text-sm">{errors.name.message}</p>
-                )}
-              </div>
-              <div>
-                <label className="block mb-1 text-slate-200 font-medium">
-                  Price
-                </label>
-                <input
-                  type="number"
-                  placeholder="Enter price"
-                  step="0.01"
-                  min="0.01"
-                  className="input input-bordered w-full text-gray-800 font-semibold"
-                  {...register("price", { valueAsNumber: true })}
-                />
-                {errors.price && (
-                  <p className="text-red-500 text-sm">{errors.price.message}</p>
-                )}
-              </div>
-              <div>
-                <label className="block mb-1 text-slate-200  font-medium">
-                  Description
-                </label>
-                <textarea
-                  placeholder="Enter description"
-                  className="textarea textarea-bordered w-full h-32 text-gray-800 font-semibold"
-                  {...register("description", { required: true })}
-                />
-                {errors.description && (
-                  <p className="text-red-500 text-sm">
-                    {errors.description.message}
-                  </p>
-                )}
-              </div>
-              <div>
-                <label className="block mb-1 text-slate-200 font-medium">
-                  Collection
-                </label>
-                <select
-                  className="select select-bordered w-full text-gray-800 font-semibold cursor-pointer"
-                  {...register("collection")}
-                >
-                  <option value="">Select collection</option>
-                  <option value="music">Music</option>
-                  <option value="art">Art</option>
-                  <option value="game">Game</option>
-                </select>
-                {errors.collection && (
-                  <p className="text-red-500 text-sm">
-                    {errors.collection.message}
-                  </p>
-                )}
-              </div>
-              <div className="flex items-center gap-2 mb-4">
-                <label className="block mb-1 text-slate-200 font-medium">
-                  Sell NFT
-                </label>
-                <input
-                  type="checkbox"
-                  className="checkbox checkbox-info"
-                  {...register("sell")}
-                />
-              </div>
-              <button
-                className="btn w-full bg-[#302b63] hover:bg-[#4d488a] text-white"
-                disabled={uploading || minting}
-                type="submit"
-              >
-                {uploading
-                  ? "Uploading..."
-                  : minting
-                  ? "Minting..."
-                  : "Mint NFT"}
-              </button>
-              {/* {success && <p className="text-green-600 text-center">{success}</p>} */}
-            </div>
+            <ImageUpload
+              file={file}
+              preview={preview}
+              error={error}
+              handleUploadClick={handleUploadClick}
+              handleFileChange={handleFileChange}
+              fileInputRef={fileInputRef}
+            />
+            <NFTMintForm
+              register={register}
+              errors={errors}
+              uploading={uploading}
+              minting={minting}
+            />
           </form>
         </div>
       </div>

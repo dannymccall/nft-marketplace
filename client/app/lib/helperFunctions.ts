@@ -1,4 +1,4 @@
-import { UserAuthProps } from "./types";
+import { ListingProps, UserAuthProps } from "./types";
 import NFTCONTRACT from "@/app/contracts/MyNFT.json";
 import NFTMARKETCONTRACT from "@/app/contracts/MyNFTMarketplace.json";
 import { NFTProps } from "./types";
@@ -7,7 +7,9 @@ import { Web3 } from "web3";
 
 async function connectWallet() {
   if (!window.ethereum) {
-    throw new Error("No wallet connected, Please install metamask to continue.");
+    throw new Error(
+      "No wallet connected, Please install metamask to continue."
+    );
   }
   const accounts = await window.ethereum.request({
     method: "eth_requestAccounts",
@@ -103,32 +105,35 @@ export async function mint(tokenUri: string, from: string) {
   }
 }
 
-export async function approve(tokenId: number) {
+export async function approveAllNFTsForMarketplace() {
   const { web3, account } = await connectWallet();
   const contract = new web3.eth.Contract(
     NFTCONTRACT.abi,
     process.env.NEXT_PUBLIC_NFT_ADDRESS
   );
 
-  try {
-    // const gasEstimate = await calculateGasEstimate({
-    //   method: "approve",
-    //   args: [process.env.NEXT_PUBLIC_NFT_MARKET_ADDRESS, tokenId],
-    //   from,
-    // });
+  const marketplace = process.env.NEXT_PUBLIC_NFT_MARKET_ADDRESS;
+  const isApproved = await contract.methods
+    .isApprovedForAll(account, marketplace)
+    .call();
 
-    const txReceipt = await contract.methods
-      .approve(process.env.NEXT_PUBLIC_NFT_MARKET_ADDRESS, tokenId)
-      .send({
-        from: account,
-        // gas: gasEstimate as any,
-      });
+  if (isApproved) return { alreadyApproved: true };
 
-    return txReceipt;
-  } catch (error: any) {
-    console.error("Error approving NFT:", error.message || error);
-    throw new Error("Failed to approve NFT");
-  }
+  return await contract.methods
+    .setApprovalForAll(marketplace, true)
+    .send({ from: account });
+}
+
+export async function approveSingleNFT(tokenId: number) {
+  const { web3, account } = await connectWallet();
+  const contract = new web3.eth.Contract(
+    NFTCONTRACT.abi,
+    process.env.NEXT_PUBLIC_NFT_ADDRESS
+  );
+
+  return await contract.methods
+    .approve(process.env.NEXT_PUBLIC_NFT_MARKET_ADDRESS, tokenId)
+    .send({ from: account });
 }
 
 export async function checkApproved(tokenId: number) {
@@ -147,6 +152,21 @@ export async function checkApproved(tokenId: number) {
   );
 }
 
+
+export async function checkIsApprovedForAll(){
+  const { web3, account } = await connectWallet();
+
+  const contract = new web3.eth.Contract(
+    NFTCONTRACT.abi,
+    process.env.NEXT_PUBLIC_NFT_ADDRESS
+  );
+
+  const isApproved = await contract.methods
+    .isApprovedForAll(account, process.env.NEXT_PUBLIC_NFT_MARKET_ADDRESS)
+    .call();
+
+  return isApproved;
+}
 export async function listNFT(tokenId: number, price: string) {
   const { web3, account } = await connectWallet();
   const contract = new web3.eth.Contract(
@@ -217,13 +237,112 @@ export async function buyNFT(tokenId: number, price: number, listId: number) {
   }
 }
 
-export async function cancelListing(tokenId: number) {
+export async function getListing(tokenId: number){
   const { web3, account } = await connectWallet();
   const contract = new web3.eth.Contract(
     NFTMARKETCONTRACT.abi,
     process.env.NEXT_PUBLIC_NFT_MARKET_ADDRESS
   );
+
+  try {
+    const listing: any = await contract.methods.isTokenListed(tokenId).call();
+    if (!listing) {
+      throw new Error("Listing not found for this token ID");
+    }
+    return listing;
+  } catch (error: any) {
+    console.error("Error fetching NFT listing:", error.message || error);
+    throw new Error(error.message || "Failed to fetch NFT listing");
+  }
 }
+
+export async function cancelNFTListing(listingId: number) {
+  const { web3, account } = await connectWallet();
+  const contract = new web3.eth.Contract(
+    NFTMARKETCONTRACT.abi,
+    process.env.NEXT_PUBLIC_NFT_MARKET_ADDRESS
+  );
+
+  try {
+    // Optionally fetch the listing first (but this won't throw if listing doesn't exist)
+    const listing: any = await contract.methods.returnListing(listingId).call();
+    if (!listing || listing.seller.toLowerCase() !== account.toLowerCase()) {
+      throw new Error("You are not the seller or listing doesn't exist");
+    }
+
+    // Send the transaction to cancel the listing
+    const txReceipt = await contract.methods
+      .cancelListing(listingId)
+      .send({ from: account });
+
+    return txReceipt;
+  } catch (error: any) {
+    console.error("Error canceling NFT listing:", error.message || error);
+    throw new Error(error.message || "Failed to cancel NFT listing");
+  }
+}
+export async function activateNFTListing(listingId: number, price: number) {
+  const { web3, account } = await connectWallet();
+  const contract = new web3.eth.Contract(
+    NFTMARKETCONTRACT.abi,
+    process.env.NEXT_PUBLIC_NFT_MARKET_ADDRESS
+  );
+
+  try {
+    // Optionally fetch the listing first (but this won't throw if listing doesn't exist)
+    const listing: any = await contract.methods
+      .returnListing(listingId)
+      .call({from: account});
+
+    console.log({ listing });
+    if (!listing || listing.seller.toLowerCase() !== account.toLowerCase()) {
+      throw new Error("You are not the seller or listing doesn't exist");
+    }
+
+    if (listing.sold) throw new Error("Cannot activate a sold NFT");
+    // Send the transaction to cancel the listing
+    const txReceipt = await contract.methods
+      .activateListing(listingId, web3.utils.toWei(`${price}`,'ether'))
+      .send({ from: account });
+
+    return txReceipt;
+  } catch (error: any) {
+    console.error("Error canceling NFT listing:", error.message || error);
+    throw new Error(error.message || "Failed to cancel NFT listing");
+  }
+}
+
+// export const sendListingToBackend = async (
+//   payload: {
+//     listId: number;
+//     service: string;
+//     receipt?: any; // ideally give this a proper type
+//     tokenId?: number;
+//     price?: number;
+//   },
+//   showToast: (message: string, type?: string) => void
+// ): Promise<void> => {
+//   try {
+//     const response = await makeRequest(
+//       `/api/listing?service=${payload.service}`,
+//       {
+//         method: payload.service === "listNFT" ? "POST" : "PUT",
+//         body: JSON.stringify({ payload }),
+//       }
+//     );
+
+//     if (!response || !response.success) {
+//       showToast(response?.message || "Something went wrong", "error");
+//       return;
+//     }
+
+//     showToast(response.message, "success");
+//   } catch (error: any) {
+//     console.error("Error in sendListingToBackend:", error);
+//     showToast(error.message || "Something went wrong", "error");
+//   }
+// };
+
 
 export async function checkIfUserExists(address: string) {
   try {
@@ -236,6 +355,7 @@ export async function checkIfUserExists(address: string) {
     }
 
     const userData = await user.json();
+    console.log(userData);
     return userData;
   } catch (error: any) {
     console.error("Error checking user existence:", error.message || error);
@@ -314,8 +434,9 @@ export function toCapitalized(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
 
-export const isOwner = (address: string, nft: NFTProps): boolean => {
-  if (address) return address.toLowerCase() === nft.owner.address.toLowerCase();
+export const isOwner = (address: string, operator: string): boolean => {
+  if (address)
+    return address.toLowerCase() === operator.toLowerCase();
   return false;
 };
 

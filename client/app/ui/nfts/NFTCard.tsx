@@ -1,18 +1,34 @@
 "use client";
 import Image from "next/image";
 
-import React from "react";
-import { NFTProps } from "@/app/lib/types";
+import React, { useEffect, useState } from "react";
+import { NFTProps, ListingProps } from "@/app/lib/types";
 import { useNFTCart } from "@/app/context/CartContext";
-import { isOwner, makeRequest, toCapitalized } from "@/app/lib/helperFunctions";
 import { FiCheck, FiCopy } from "react-icons/fi";
 import { useHandleCopy } from "@/app/hooks/useCopy";
 import { useWallet } from "@/app/context/WallatContext";
-import { listNFT, approve, checkApproved } from "@/app/lib/helperFunctions";
+import { useHandleSendToBackend } from "@/app/hooks/useSendToBackend";
+import {
+  listNFT as listNFTFromContract,
+  approveAllNFTsForMarketplace,
+  approveSingleNFT,
+  checkIsApprovedForAll,
+  checkApproved,
+  cancelNFTListing,
+  activateNFTListing,
+  getListing,
+  toCapitalized,
+} from "@/app/lib/helperFunctions";
 import NFTActionButtons from "@/app/components/NFTActionButtons";
 import { stringifyBigInts } from "@/app/lib/helperFunctions";
 import { useNotification } from "@/app/context/NotificationContext";
-
+import { useRouter } from "next/navigation";
+import ApproveNFT from "@/app/components/ApproveNFT";
+import ListNFTPriceModal from "@/app/components/ListNFTPriceModal";
+import NFTDetails from "@/app/components/NFTDetails";
+import Loader from "@/app/components/Loader";
+import { isOwner } from "@/app/lib/helperFunctions";
+import Web3 from "web3";
 interface INFT {
   nft: NFTProps;
 }
@@ -21,125 +37,202 @@ const NFTCard = ({ nft }: INFT) => {
   const { addItem } = useNFTCart();
   const { copyToClipboard, setCopied, copied } = useHandleCopy();
   const { account } = useWallet();
-  const {showToast} = useNotification()
+  const { showToast } = useNotification();
+  const [shouldListAfterApproval, setShouldListAfterApproval] = useState(false);
+  const [modalOpen, setModalOpen] = useState<boolean>(false);
+  const [price, setPrice] = useState<number>(0);
+  const [showListButton, setShowListButton] = useState<boolean>(false);
+
+  const router = useRouter();
+  const [listingOnContract, setListingOnContract] = useState<
+    Record<string, any>
+  >({});
+  const { sendListingToBackend } = useHandleSendToBackend();
+
 
   const handleListNFT = async (nft: NFTProps) => {
     const tokenId = parseInt(nft.tokenId);
-    try{
+    console.log({nft})
+    try {
       const needsApproval = await checkApproved(tokenId);
-      console.log({needsApproval})
-      if(!needsApproval) await approve(tokenId);
-      const receipt = await listNFT(tokenId, `${nft.price}`);
-      console.log(receipt);
-      const listId = receipt.events?.NFTListed.returnValues.id!.toString();
-      const safeTransaction = stringifyBigInts(receipt);
-      const response = await makeRequest(`/api/nft?service=listNFT`, {
-        method: "POST",
-        body: JSON.stringify({
-          receipt: safeTransaction,
-          data: { tokenId, listId },
-        }),
-      });
-
-      if(response.success){
-        showToast(response.message, "success");
+      const isApprovedForAll = await checkIsApprovedForAll();
+      console.log(needsApproval, isApprovedForAll);
+      if (!needsApproval && !isApprovedForAll) {
+        setShouldListAfterApproval(true);
+        return;
       }
-    }catch(error: any){
-      console.log(error.message)
+      setModalOpen(true);
+    } catch (error: any) {
+      console.log(error.message);
+      showToast(error.message, "error");
     }
   };
 
+  const listNFT = async (tokenId: number, price: string): Promise<any> => {
+    if (!account) throw new Error("Wallet not connected");
+    if (!tokenId || !price) throw new Error("Invalid tokenId or price");
+
+    try {
+      const receipt = await listNFTFromContract(tokenId, `${price}`);
+      const listId = receipt.events?.NFTListed.returnValues.id!.toString();
+
+      const safeTransaction = stringifyBigInts(receipt);
+      await sendListingToBackend(
+        {
+          receipt: safeTransaction,
+          listId: parseInt(listId),
+          service: "listNFT",
+          tokenId,
+          price: parseFloat(price),
+        },
+        `/api/listing?service=listNFT`
+      );
+      router.refresh();
+    } catch (error: any) {
+      console.log(error.message);
+      showToast(error.message, "error");
+      return;
+    }
+  };
+
+  useEffect(() => {
+    (async () => {
+      const listing = await getListing(parseInt(nft.tokenId));
+      console.log("Listing", {listing});
+      const listed = listing[0];
+      console.log(listed.id.toString(), listed.sold, listed.active)
+     setListingOnContract(listed);
+     console.log(isOwner(account!, listed.seller))
+      setShowListButton(isOwner(account!, listed.seller) && !listed.sold && !listed.active);
+    })();
+  }, []);
+
+  const isListingReady =
+  !listingOnContract  &&
+  typeof listingOnContract === "object" &&
+  Object.keys(listingOnContract).length > 0;
+
+  useEffect(() => {
+    console.log(listingOnContract.active)
+    console.log(listingOnContract);
+  }, []);
+  // const handleOnApproved = async (nft: NFTProps) => {
+  //   const tokenId = parseInt(nft.tokenId);
+
+  //   const [listing, exists] = await getListing(tokenId);
+  //   if (exists) {
+  //     handleActivateNFT(listing.listId);
+  //   } else {
+  //     listNFT(tokenId, price.toString());
+  //   }
+  // };
+
+  const handleCancelNFT = async (tokenId: number): Promise<any> => {
+    try {
+      const listing = await getListing(tokenId);
+      const receipt = await cancelNFTListing(listing[0].id.toString());
+      const listId =
+        receipt.events?.ListingCanceled.returnValues.id!.toString();
+        listId
+      const safeTransaction = stringifyBigInts(receipt);
+      console.log({id: listing[0].id})
+      await sendListingToBackend(
+        {
+          listId: parseInt(listing[0].id.toString()),
+          service: "cancelListing",
+        },
+        `/api/listing?service=cancelListing`
+      );
+      router.refresh();
+    } catch (error: any) {
+      console.log(error.message);
+      showToast(error.message, "error");
+    }
+  };
+
+  const handleOnSetPrice = async (tokenId: number) => {
+    console.log("Setting price for tokenId:", tokenId, "Price:", price);
+    setPrice(0);
+    const listing = await getListing(tokenId);
+    const exists = listing[1];
+    console.log(exists)
+    console.log("Listing", listing[0].id.toString());
+    if (exists && !listing[0].sold) {
+      await handleActivateNFT(parseInt(listing[0].id.toString()));
+      router.refresh();
+    } else {
+      await listNFT(tokenId, price.toString());
+      router.refresh();
+    }
+  };
+
+
+  const handleActivateNFT = async (listId: number) => {
+    // const tokenId = parseInt(nft.tokenId);
+    try {
+      const receipt = await activateNFTListing(listId, price);
+      // const listId =
+      //   receipt.events?.ListingActivated.returnValues.id!.toString();
+      const safeTransaction = stringifyBigInts(receipt);
+      await sendListingToBackend(
+        {
+          listId: listId,
+          price: price,
+          service: "activateListing",
+        },
+        `/api/listing?service=activateListing`
+      );
+    } catch (error: any) {
+      console.log(error.message);
+      showToast(error.message, "error");
+    }
+  };
   return (
-    <div className="w-full h-full flex flex-col gap-6 overflow-x-auto mb-5">
-      <div className="w-full h-[650px]">
-        <Image
-          src={nft.image}
-          alt={`NFT ${nft.name}`}
-          width={700}
-          height={700}
-          // fill
-          className="w-full h-full  shadow-md rounded-md"
-        />
-      </div>
-      <div className="w-full bg-[#1c1b29] overflow-x-auto">
-        <section className="p-4 rounded-md gap-5 flex flex-col border border-gray-600 overflow-x-auto">
-          <h1>NFT Details</h1>
+    <div className="w-full h-full flex flex-col gap-6 overflow-x-auto mb-5 relative">
+      {isListingReady ? (
+        <div className="w-full h-full my-auto relative bottom-0">
+          <Loader />
 
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-center">
-            <h1 className="w-full sm:w-24 text-gray-400 text-sm">Name:</h1>
-            <p className="text-gray-400 text-sm border border-gray-600 py-1 px-3 rounded-sm w-full sm:w-auto">
-              {toCapitalized(nft.name)}
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-center">
-            <h1 className="w-full sm:w-24 text-gray-400 text-sm">
-              Collection:
-            </h1>
-            <p className="text-gray-400 text-sm border border-gray-600 py-1 px-3 rounded-sm w-full sm:w-auto">
-              {toCapitalized(nft.collectionName)}
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-center">
-            <h1 className="w-full sm:w-24 text-gray-400 text-sm">Price:</h1>
-            <p className="text-gray-400 text-sm border border-gray-600 py-1 px-3 rounded-sm w-full sm:w-auto">
-              {nft.price} ETH
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-center">
-            <h1 className="w-full sm:w-24 text-gray-400 text-sm">Creator:</h1>
-            <p className="text-gray-400 flex items-center text-sm border border-gray-600 py-1 px-3 rounded-sm break-all w-full sm:w-auto">
-              {nft.creator.address}
-              <button
-                onClick={() => {
-                  copyToClipboard(nft.creator.address), setCopied(true);
-                }}
-                title={copied ? "Copied!" : "Copy address"}
-                className="cursor-pointer text-slate-50 hover:text-green-400 p-2 rounded-r-md rounded-l-none"
-              >
-                {copied ? <FiCheck /> : <FiCopy />}
-              </button>
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-center">
-            <h1 className="w-full sm:w-24 text-gray-400 text-sm">Owner:</h1>
-            <p className="text-gray-400 flex items-center text-sm border border-gray-600 py-1 px-3 rounded-sm break-all w-full sm:w-auto">
-              {nft.owner.address}
-              <button
-                onClick={() => {
-                  copyToClipboard(nft.owner.address), setCopied(true);
-                }}
-                title={copied ? "Copied!" : "Copy address"}
-                className="cursor-pointer text-slate-50 hover:text-green-400 p-2 rounded-r-md rounded-l-none"
-              >
-                {copied ? <FiCheck /> : <FiCopy />}
-              </button>
-            </p>
-          </div>
-          <NFTActionButtons
-            nft={nft}
-            showBuy={!isOwner(account!, nft)}
-            showList={isOwner(account!, nft) && !nft.active}
-            showCancel={isOwner(account!, nft) && nft.active}
-            // onBuy={(nft) => {
-            //   console.log("Buying NFT", nft);
-            //   // Call smart contract or add to cart
-            // }}
-            onList={(nft) => {
-              console.log("Listing NFT", nft);
-              handleListNFT(nft);
-              // Call backend or blockchain to list
-            }}
-            onCancel={(nft) => {
-              console.log("Canceling listing", nft);
-              // Cancel listing via contract or API
+        </div>
+      ) : (
+        <React.Fragment>
+          <ApproveNFT
+            modalOpen={shouldListAfterApproval}
+            setModalOpen={setShouldListAfterApproval}
+            onClose={() => setShouldListAfterApproval(false)}
+            tokenId={parseInt(nft.tokenId)}
+            onApprove={(tokenId) => {
+              setTimeout(() => {
+                setModalOpen(true);
+              }, 2000);
+              setShouldListAfterApproval(false);
             }}
           />
-        </section>
-      </div>
+          <ListNFTPriceModal
+            modalOpen={modalOpen}
+            setModalOpen={setModalOpen}
+            onClose={() => setShouldListAfterApproval(false)}
+            price={price}
+            setPrice={setPrice}
+            tokenId={parseInt(nft.tokenId)}
+            onSet={(price) => {
+              handleOnSetPrice(parseInt(nft.tokenId));
+              setShouldListAfterApproval(false);
+            }}
+          />
+
+          <NFTDetails
+            nft={nft}
+            listingOnContract={listingOnContract}
+            toCapitalized={(text) => toCapitalized(text)}
+            copyToClipboard={(text) => copyToClipboard(text)}
+            showListButton={showListButton}
+            showCancelButton = {listingOnContract.seller && isOwner(account!, listingOnContract.seller) && listingOnContract.active && !listingOnContract.sold}
+            handleCancelNFT={handleCancelNFT}
+            handleListNFT={handleListNFT}
+          />
+        </React.Fragment>
+      )}
     </div>
   );
 };

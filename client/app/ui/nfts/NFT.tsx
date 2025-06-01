@@ -26,9 +26,9 @@ const NFT: React.FC<NFTProps> = ({ nft }) => {
       <td className="text-left text-slate-300 text-sm lg:text-base">
         {toCapitalized(nft.collectionName)}
       </td>
-      <td className="text-left text-slate-300 text-sm lg:text-base">
+      {/* <td className="text-left text-slate-300 text-sm lg:text-base">
         {nft.price}
-      </td>
+      </td> */}
       <td className="text-left text-slate-300 text-sm lg:text-base">
         <Link href={`/nft/${nft._id}`} className="text-amber-600 link-btn flex items-center gap-1">
           View <IoArrowForwardCircleSharp className="icon-move-left"/>

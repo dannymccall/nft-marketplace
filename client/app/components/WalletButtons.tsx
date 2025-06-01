@@ -20,7 +20,7 @@ import SearchForms from "./SearchForm";
 import Image from "next/image";
 import { SearchFormProps } from "./SearchForm";
 import { usePathname } from "next/navigation";
-
+import { useWallet } from "../context/WallatContext";
 interface WalletButtonsProps extends SearchFormProps {
   user: { address: string; _id: string } | null;
   onLoginClick: () => void;
@@ -41,8 +41,8 @@ export default function WalletButtons({
   const { closeSidebar, openSidebar } = useSidebar();
   const { profilePicture } = useProfile();
   const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
-  const pathname = usePathname()
-
+  const pathname = usePathname();
+  const { account } = useWallet();
   //Prevent the modal to close on every import except the user hits enter
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -51,9 +51,9 @@ export default function WalletButtons({
     }
   };
 
-      useEffect(() => {
-        setIsDropdownOpen(false);
-    }, [pathname]);
+  useEffect(() => {
+    setIsDropdownOpen(false);
+  }, [pathname]);
 
   return (
     <div className="flex items-center gap-2 w-full relative">
@@ -116,8 +116,15 @@ export default function WalletButtons({
           className="h-10 w-10 rounded-lg cursor-pointer relative"
           onClick={() => setIsDropdownOpen((prev) => !prev)}
         />
-      ) : (
+      ) : user ? (
         // </div>
+        <button
+          className="relative btn glass bg-[#2f2960]  text-slate-50 hover:text-indigo-400 p-2 sm:p-3"
+          onClick={() => setIsDropdownOpen((prev) => !prev)}
+        >
+          <FaUserCircle size={22} />
+        </button>
+      ) : (
         <button
           className="relative btn glass bg-[#2f2960]  text-slate-50 hover:text-indigo-400 p-2 sm:p-3"
           popoverTarget="popover-1"
@@ -145,7 +152,7 @@ export default function WalletButtons({
         </li>
         <li>
           <button
-            className="btn px-2 flex gap-3 items-center text-base w-full  font-bold text-slate-700 hover:bg-gray-400"
+            className="flex gap-3 items-center text-base w-full p-2 font-bold text-slate-700 hover:bg-gray-400"
             onClick={handleLogout}
           >
             <CiLogout className="font-bold" />
@@ -160,9 +167,7 @@ export default function WalletButtons({
       >
         <FaShoppingBasket size={22} className="sm:w-6 sm:h-6 w-5 h-5" />
 
-        <span
-          className="absolute top-0 right-0 -mt-1 -mr-1 bg-slate-50 text-[#302b63] rounded-full text-[10px] sm:text-xs w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center font-semibold"
-        >
+        <span className="absolute top-0 right-0 -mt-1 -mr-1 bg-slate-50 text-[#302b63] rounded-full text-[10px] sm:text-xs w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center font-semibold">
           {items.length}
         </span>
       </button>

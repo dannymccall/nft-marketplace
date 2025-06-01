@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { styles } from "@/app/styles/styles";
 import TabComponent from "@/app/components/Tabs";
 import { useWallet } from "../context/WallatContext";
-import { NFTProps } from "../lib/types";
+import { NFTProps, ListingProps } from "../lib/types";
 import { makeRequest } from "../lib/helperFunctions";
 import NFTListings from "../components/NFTListings";
 import Loader from "../components/Loader";
@@ -14,25 +14,25 @@ import { GiDart } from "react-icons/gi";
 
 const Body = () => {
   const { account, connectWallet } = useWallet();
-  const [nfts, setNfts] = useState<NFTProps[]>([]);
+  const [listings, setListings] = useState<ListingProps[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const { searchQuery, setSearchQuery } = useSearch();
   const [category, setCategory] = useState<string>("All");
-  const fetchNFT = async (query: string = "") => {
-    const response = await makeRequest(`/api/nft?filter=${query}`, {
+  const fetchListing = async (query: string = "") => {
+    const response = await makeRequest(`/api/listing?filter=${query}`, {
       method: "GET",
     });
     console.log(response);
-    setNfts(response.nfts);
+    setListings(response);
     setLoading(false);
   };
 
   useEffect(() => {
     if (searchQuery !== "") {
       setLoading(true);
-      fetchNFT(searchQuery);
+      fetchListing(searchQuery);
     } else {
-      fetchNFT(""); // default load
+      fetchListing(""); // default load
     }
   }, [searchQuery]);
 
@@ -113,10 +113,10 @@ const Body = () => {
       </React.Fragment>
       {loading ? (
         <Loader />
-      ) : nfts.length > 0 ? (
+      ) : listings.length > 0 ? (
         <div>
           <h1 className="text-3xl font-bold my-6 text-slate-300">{category}</h1>
-          <NFTListings nfts={nfts} />
+          <NFTListings listings={listings} />
         </div>
       ) : (
         <NoNFTs />

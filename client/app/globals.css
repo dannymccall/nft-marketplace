@@ -33,11 +33,11 @@
   
   @keyframes pulse {
     0%, 100% {
-      transform: scale(0.8);
+      transform: translateX(-10px);
       opacity: 1;
     }
     50% {
-      transform: scale(1);
+      transform: translateX(10px);
       opacity: 1;
     }
   }  

@@ -4,54 +4,47 @@ import Image from "next/image";
 import { useAuth } from "../context/AuthContext";
 import { useState } from "react";
 import LoginController from "./LoginController";
-import { approve, checkApproved, makeRequest, stringifyBigInts } from "../lib/helperFunctions";
+import { stringifyBigInts } from "../lib/helperFunctions";
 import { buyNFT as buyNFTFromContract } from "../lib/helperFunctions";
 import { useNotification } from "../context/NotificationContext";
 import { AiFillCloseCircle } from "react-icons/ai";
-
-
+import { useHandleSendToBackend } from "../hooks/useSendToBackend";
+import { useRouter } from "next/navigation";
+import { useWallet } from "../context/WallatContext";
 export default function NFTCartPanel() {
   const { items, removeItem, isOpen, toggleCart } = useNFTCart();
   const total = items.reduce((sum, nft) => sum + nft.price, 0);
   const [modalOpen, setModalOpen] = useState<boolean>(false);
   const { user } = useAuth();
-  const {showToast} = useNotification();
+  const { showToast } = useNotification();
+  const { sendListingToBackend } = useHandleSendToBackend();
+  const {account} = useWallet();
+  const router = useRouter();
+  const buyNFT = async (
+    tokenId: number,
+    price: number,
+    listId: number,
+    id: string
+  ) => {
+    try {
+      console.log(`Buying...  ${tokenId} ${price} ${listId}`);
 
-const buyNFT = async (tokenId: number, price: number, listId: number, id: string) => {
-  try {
-    console.log(`Buying...  ${tokenId} ${price} ${listId}`);
+      const receipt = await buyNFTFromContract(tokenId, price, listId); // this can throw
+      console.log(receipt);
 
-    const receipt = await buyNFTFromContract(tokenId, price, listId); // this can throw
-    console.log(receipt);
+      const safeTransaction = stringifyBigInts(receipt);
 
-    const safeTransaction = stringifyBigInts(receipt);
-
-    const response = await fetch(`/api/nft?service=buyNFT`, {
-      method: "POST",
-      body: JSON.stringify({ receipt: safeTransaction, data: { tokenId } }),
-    });
-
-    if (!response.ok) {
-      showToast(response.statusText || "Server error", "error");
-      return;
-    }
-
-    const data = await response.json();
-
-    if (data.success) {
+      await sendListingToBackend(
+        { receipt: safeTransaction, listId: listId, service: "buyListing",address: account! },
+        `/api/listing?service=buyListing`
+      );
       removeItem(id);
-      showToast(data.message || "NFT purchased successfully", "success");
-    } else {
-      showToast(data.message || "Failed to process purchase", "error");
+      router.refresh();
+    } catch (error: any) {
+      console.error("Error in buyNFT:", error);
+      showToast(error.message || "Failed to buy NFT", "error");
     }
-
-    console.log(data);
-  } catch (error: any) {
-    console.error("Error in buyNFT:", error);
-    showToast(error.message || "Failed to buy NFT", "error");
-  }
-};
-
+  };
 
   return (
     <>
@@ -66,8 +59,8 @@ const buyNFT = async (tokenId: number, price: number, listId: number, id: string
           <h2 className="text-xl font-bold">Check Out</h2>
           <button onClick={toggleCart} className="cursor-pointer">
             {/* <p className="flex items-center justify-center top-1 right-1 bg-slate-50 rounded-full text-[#302b63] w-6 h-6 text-lg font-bold leading-none"> */}
-              <AiFillCloseCircle size={25} />
-          
+            <AiFillCloseCircle size={25} />
+
             {/* </p> */}
           </button>
         </div>
@@ -97,7 +90,7 @@ const buyNFT = async (tokenId: number, price: number, listId: number, id: string
                         Edition {nft.edition}
                       </p>
                     )}
-                    <p className="text-sm">Ξ {nft.price}</p>
+                    <p className="text-sm">Ξ {nft.price} ETH</p>
                   </div>
                   <button
                     onClick={() => removeItem(nft.id)}
@@ -108,7 +101,9 @@ const buyNFT = async (tokenId: number, price: number, listId: number, id: string
                   </button>
                 </div>
                 <button
-                  onClick={() => buyNFT(nft.tokenId, nft.price,nft.listId, nft.id)}
+                  onClick={() =>
+                    buyNFT(nft.tokenId, nft.price, nft.listId, nft.id)
+                  }
                   className="bg-slate-200 text-[#302b63] font-bold py-2 px-4 rounded hover:bg-slate-100 cursor-pointer text-sm w-full"
                 >
                   Buy this NFT

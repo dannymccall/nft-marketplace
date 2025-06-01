@@ -22,9 +22,9 @@ const NFTList: React.FC<NFTListProps> = ({ nfts }) => {
               <th className="text-base font-sans font-medium text-slate-100 p-2">
                 Collection
               </th>
-              <th className="text-base font-sans font-medium text-slate-100 p-2">
+              {/* <th className="text-base font-sans font-medium text-slate-100 p-2">
                 Price
-              </th>
+              </th> */}
               <th className="text-base font-sans font-medium text-slate-100 p-2">
                 Action
               </th>

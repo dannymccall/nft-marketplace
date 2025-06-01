@@ -19,10 +19,11 @@ contract MyNFTMarketplace is ReentrancyGuard, IERC721Receiver {
         uint256 price;
         bool sold;
         bool active;
-
     }
 
     mapping(uint256 => Listing) private listings;
+    mapping(uint256 => uint256) public tokenToListingId;
+
     event NFTListed(
         uint256 indexed id,
         address indexed seller,
@@ -33,6 +34,7 @@ contract MyNFTMarketplace is ReentrancyGuard, IERC721Receiver {
 
     event NFTSold(uint256 indexed id, address indexed buyer);
     event ListingCanceled(uint256 indexed id);
+    event ListingActivated(uint256 indexed id);
     event DebugCheckpoint(string message);
     event DebugFee(uint256 fee, uint256 price, uint256 feePercent);
 
@@ -84,20 +86,19 @@ contract MyNFTMarketplace is ReentrancyGuard, IERC721Receiver {
         // nft.safeTransferFrom(msg.sender, address(this), _tokenId);
         NFTLibrary.safeTransfer(_nftContract, address(this), _tokenId);
 
-        listings[_listingId] = Listing(
-            _listingId,
-            msg.sender,
-            _nftContract,
-            _tokenId,
-            _price,
-            false,
-            true
-        );
-
+        listings[_listingId] = Listing({
+            id: _listingId,
+            seller: msg.sender,
+            nftContract: _nftContract,
+            tokenId: _tokenId,
+            price: _price,
+            sold: false,
+            active: true
+        });
 
         emit NFTListed(_listingId, msg.sender, _nftContract, _tokenId, _price);
+        tokenToListingId[_tokenId] = _listingId;
         _listingId++;
-
     }
 
     function buyNFT(uint256 _tokenId, uint256 _listedId) external payable {
@@ -123,7 +124,7 @@ contract MyNFTMarketplace is ReentrancyGuard, IERC721Receiver {
 
         listing.sold = true;
         listing.active = false;
-        
+
         IERC721(listing.nftContract).safeTransferFrom(
             address(this),
             msg.sender,
@@ -159,8 +160,32 @@ contract MyNFTMarketplace is ReentrancyGuard, IERC721Receiver {
             listing.tokenId
         );
 
-        delete listings[listingId];
-        emit ListingCanceled(_listingId);
+        listing.active = false;
+        emit ListingCanceled(listingId);
+    }
+
+    function activateListing(uint256 listingId, uint256 _price) external {
+        Listing storage listing = listings[listingId];
+        require(!listing.sold, "This NFT has already been sold");
+        require(listing.seller == msg.sender, "Not your listing");
+
+        //         require(
+        //     IERC721(listing.nftContract).getApproved(listing.tokenId) == address(this) ||
+        //     IERC721(listing.nftContract).isApprovedForAll(msg.sender, address(this)),
+        //     "Not approved to transfer NFT"
+        // );
+        IERC721(listing.nftContract).safeTransferFrom(
+            msg.sender,
+            address(this),
+            listing.tokenId
+        );
+
+        if (_price > 0) {
+            listing.price = _price;
+        }
+        listing.active = true;
+
+        emit ListingActivated(listingId);
     }
 
     function onERC721Received(
@@ -172,11 +197,22 @@ contract MyNFTMarketplace is ReentrancyGuard, IERC721Receiver {
         return IERC721Receiver.onERC721Received.selector;
     }
 
-    function returnListing(uint256 listingId)
-        external
-        view
-        returns (Listing memory)
-    {
-        return listings[listingId];
+    function returnListing(
+        uint256 tokenId
+    ) external view returns (Listing memory) {
+        return listings[tokenId];
+    }
+
+    function isTokenListed(
+        uint256 tokenId
+    ) public view returns (Listing memory, bool) {
+        uint256 listingId = tokenToListingId[tokenId];
+        if (listingId == 0)
+            return (
+                Listing(0, address(0), address(0), 0, 0, false, false),
+                false
+            );
+        Listing memory listing = listings[listingId];
+        return (listing, true);
     }
 }

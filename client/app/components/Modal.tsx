@@ -7,6 +7,7 @@ interface ModalProps {
   width?: string;
   onClose: () => void;
   className?: string;
+  title?: string;
 }
 
 const Modal: React.FC<ModalProps> = ({
@@ -15,10 +16,12 @@ const Modal: React.FC<ModalProps> = ({
   children,
   width,
   onClose,
-  className
+  className,
+  title = "Modal Title",
 }) => {
   return (
     <div className={`modal ${className} ${modalOpen ? "modal-open" : ""} w-full px-5 z-50`}>
+      <h1>{title}</h1>
       <div className={`modal-box relative ${width}`}>
         <form method="dialog">
           {/* if there is a button in form, it will close the modal */}

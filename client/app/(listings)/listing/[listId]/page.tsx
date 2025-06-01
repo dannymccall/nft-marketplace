@@ -2,13 +2,14 @@ import React from "react";
 import { makeRequest } from "@/app/lib/helperFunctions";
 import NFTCard from "@/app/ui/nfts/NFTCard";
 import Loader from "@/app/components/Loader";
-const page = async ({ params }: { params: Promise<{ nftId: string }> }) => {
+import ListingCard from "@/app/ui/Listings/ListingCard";
+const page = async ({ params }: { params: Promise<{ listId: string }> }) => {
   try {
-    const nftId = (await params).nftId;
+    const listId = (await params).listId;
     const response = await fetch(
       `${
         process.env.NEXT_PUBLIC_BASE_URL
-      }/api/nft?nftId=${encodeURIComponent(nftId)}`,
+      }/api/listing?listId=${encodeURIComponent(listId)}`,
         {
         cache: "no-store",
       }
@@ -16,8 +17,8 @@ const page = async ({ params }: { params: Promise<{ nftId: string }> }) => {
 
     if(!response.ok) throw new Error(response.statusText);
 
-    const nft = await response.json();
-    if (!nft) {
+    const listing = await response.json();
+    if (!listing) {
       return (
         <main>
           <p>NFT not found.</p>
@@ -29,8 +30,8 @@ const page = async ({ params }: { params: Promise<{ nftId: string }> }) => {
       <main className="flex flex-col ">
         <div className="mt-20">
           {
-            nft ?
-            <NFTCard nft={nft} /> : <Loader />
+            listing ?
+            <ListingCard listing={listing} /> : <Loader />
           }
         </div>
       </main>

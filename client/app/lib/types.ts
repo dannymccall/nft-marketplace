@@ -39,7 +39,7 @@ export interface UserAuthProps {
   userId?: string;
   role?: string;
   address: string;
-  _id: string
+  _id: string;
 }
 export interface IAccount {
   account: Account;
@@ -93,10 +93,7 @@ export interface GetUserDataResult {
 export type NFTProps = {
   _id: string;
   name: string;
-  price: number;
   tokenId: string;
-  active: boolean;
-  listId: number;
   owner: {
     address: string;
   };
@@ -109,15 +106,48 @@ export type NFTProps = {
 
 export type UserNFTProps = {
   _id: string;
-    name: string;
-    image: string;
-    collectionName: string;
-    price: number;
-    listed: boolean;
-    owner: {
-      address: string
-    }
+  name: string;
+  image: string;
+  collectionName: string;
+  owner: {
+    address: string;
+  };
+  creator: {
+    address: string;
+  };
+};
+
+export type UserNFTListingProps ={
+  _id: string;
+  nft:UserNFTProps[];
+  seller: {
+    address: string;
+  };
+  listId: number;
+  price: number;
+  active: boolean;
+  soldAt: Date;
+  listedBefore: boolean;
+  buyer: {
+    address: string;
+  };
 }
+export type ListingProps = {
+  _id: string;
+  nft: NFTProps;
+  seller: {
+    address: string;
+  };
+  listId: number;
+  price: number;
+  active: boolean;
+  soldAt: Date;
+  sold: boolean;
+  listedBefore: boolean;
+  buyer: {
+    address: string;
+  };
+};
 export type UserproileProps = {
   _id: string;
   address: string;
@@ -126,7 +156,7 @@ export type UserproileProps = {
   username: string;
   email: string;
   owner: {
-    address: string
-  }
-  OwnedNFTs: UserNFTProps[]
+    address: string;
+  };
+  OwnedNFTs: UserNFTProps[];
 };

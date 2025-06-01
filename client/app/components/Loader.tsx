@@ -7,17 +7,17 @@ const Loader = () => {
       className="animate-wave-delay-1"
         style={{
           backgroundColor: "rgb(72,48,214)",
-          width: "20px",
-          height: "20px",
+          width: "10px",
+          height: "10px",
           borderRadius: 50,
         }}
       ></div>
       <div
        className="animate-wave-delay-2"
         style={{
-          backgroundColor:"rgb(26,26,28)",
-          width: "20px",
-          height: "20px",
+          backgroundColor:"rgb(255,255,255)",
+          width: "10px",
+          height: "10px",
           borderRadius: 50,
         }}
       ></div>
@@ -25,8 +25,8 @@ const Loader = () => {
        className="animate-wave-delay-3"
         style={{
           backgroundColor: "rgb(0,211,145)",
-          width: "20px",
-          height: "20px",
+          width: "10px",
+          height: "10px",
           borderRadius: 50,
         }}
       ></div>
@@ -34,8 +34,8 @@ const Loader = () => {
        className="animate-wave-delay-4"
         style={{
           backgroundColor: "rgb(255,132,154)",
-          width: "20px",
-          height: "20px",
+          width: "10px",
+          height: "10px",
           borderRadius: 50,
         }}
       ></div>

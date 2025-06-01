@@ -1,7 +1,7 @@
 "use client";
 import React, { useRef, useState } from "react";
 import { FaUserLarge } from "react-icons/fa6";
-import { CustomFile, UserproileProps } from "@/app/lib/types";
+import { CustomFile, UserproileProps, ListingProps } from "@/app/lib/types";
 import { useProfile } from "@/app/context/ProfileContext";
 import TabComponent from "@/app/components/Tabs";
 import UserContactDetails from "./UserContactDetails";
@@ -16,10 +16,10 @@ import NFTs from "../nfts/NFTs";
 interface UserProfileInterface {
   user: UserproileProps;
 }
-const UserProfile = ({ user }: UserProfileInterface) => {
+const UserProfile = ({ user }: any) => {
   const { profilePicture, updateProfilePicture } = useProfile();
-  const nonListedNFTs = user.OwnedNFTs.filter((nft) => !nft.listed && nft.owner.address === user.address);
-  const OwnedNFTs = user.OwnedNFTs.filter((nft) =>  nft.owner.address === user.address);
+  // const nonListedNFTs = user.OwnedNFTs.filter((nft) => !nft.listed && nft.owner.address === user.address);
+  // const OwnedNFTs = user.OwnedNFTs.filter((nft) =>  nft.owner.address === user.address);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [profileImage, setProfileImage] = useState<string | any>();
   const [modalOpen, setModalOpen] = useState<boolean>(false);
@@ -49,19 +49,24 @@ const UserProfile = ({ user }: UserProfileInterface) => {
   const handleClick = () => {
     fileInputRef?.current?.click();
   };
+
   const tabs = [
     {
       label: "Contact Details",
-      content: <UserContactDetails  handleOnClick={handleOnClick} user={user}/>,
+      content: <UserContactDetails  handleOnClick={handleOnClick} user={user.result[0].user[0]}/>,
     },
     {
       label: "NFTs",
-      content: <NFTs nfts={OwnedNFTs} />,
+      content: <NFTs nfts={user.result[0].user[0].OwnedNFTs} />,
     },
     {
-      label: "Non-Listed NFTs",
-      content: <UserNFTs nfts={nonListedNFTs} />,
+      label: "Created",
+      content: <UserNFTs nfts={user.created} state="sold"/>,
     },
+    // {
+    //   label: "Non-Listed NFTs",
+    //   content: <UserNFTs nfts={nonListedNFTs} />,
+    // },
   ];
 
   const useProfilePhoto = async (e: React.FormEvent) => {
