@@ -164,7 +164,7 @@ export default function MintNFT() {
     if (!user?.address) throw new Error("User address not available");
     formData.append("file", file as Blob);
     formData.append("metadata", JSON.stringify(data));
-    formData.append("address", user?.address!);
+    formData.append("address", user.address!);
 
     const res = await fetch("/api/ipfs/upload", {
       method: "POST",

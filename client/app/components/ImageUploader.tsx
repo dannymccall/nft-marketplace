@@ -1,6 +1,6 @@
 import React, { ChangeEvent, Ref, RefObject } from "react";
 import { FaUpload } from "react-icons/fa";
-
+import Image from "next/image";
 interface ImageUploadProps {
   file: File | null;
   preview: string | null;
@@ -27,7 +27,9 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
         >
           {file ? (
             preview && (
-              <img
+              <Image
+                width={300}
+                height={300}
                 src={preview}
                 alt="preview"
                 className="w-full h-96 rounded-lg"
